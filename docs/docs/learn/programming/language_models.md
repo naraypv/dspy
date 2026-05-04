@@ -178,7 +178,6 @@ You can change the default LM globally with `dspy.configure` or change it inside
 !!! tip
     Using `dspy.configure` and `dspy.context` is thread-safe!
 
-
 ```python linenums="1" 
 dspy.configure(lm=dspy.LM('openai/gpt-4o-mini'))
 response = qa(question="How many floors are in the castle David Gregory inherited?")
@@ -193,6 +192,29 @@ with dspy.context(lm=dspy.LM('openai/gpt-3.5-turbo')):
 GPT-4o-mini: The number of floors in the castle David Gregory inherited cannot be determined with the information provided.
 GPT-3.5-turbo: The castle David Gregory inherited has 7 floors.
 ```
+
+## Using subscription account pools.
+
+This fork also provides `dspy.SubscriptionLM` for rotating across locally authenticated Codex, Claude Code, Cursor, and MiniMax accounts. Use the CLI to register non-secret account metadata, then load the pool from the registry.
+
+```bash
+dspy lm accounts add codex --name codex-pro --codex-home ~/.codex-codex-pro --auth chatgpt --login
+dspy lm accounts add minimax --name minimax-main --env-key MINIMAX_API_KEY_1 --model openai/MiniMax-M2.7
+dspy lm accounts doctor
+dspy lm accounts smoke --account codex-pro --prompt "Reply with OK only." --yes-live
+```
+
+```python linenums="1"
+import dspy
+
+lm = dspy.SubscriptionLM.from_registry(
+    model="subscription/research-pool",
+    providers=["codex", "minimax"],
+)
+dspy.configure(lm=lm)
+```
+
+See [`dspy.SubscriptionLM`](../../api/models/SubscriptionLM.md) for the full CLI and Python API.
 
 ## Configuring LM generation.
 
@@ -283,4 +305,3 @@ Please note that not all models or providers support the Responses API, check [L
 ## Advanced: Building custom LMs and writing your own Adapters.
 
 Though rarely needed, you can write custom LMs by inheriting from `dspy.BaseLM`. Another advanced layer in the DSPy ecosystem is that of _adapters_, which sit between DSPy signatures and LMs. A future version of this guide will discuss these advanced features, though you likely don't need them.
-

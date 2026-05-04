@@ -110,6 +110,8 @@ nav:
         - Models:
             - Embedder: api/models/Embedder.md
             - LM: api/models/LM.md
+            - SubscriptionLM: api/models/SubscriptionLM.md
+            - SubscriptionLM Usage: api/models/SubscriptionLMUsage.md
         - Modules:
             - BestOfN: api/modules/BestOfN.md
             - ChainOfThought: api/modules/ChainOfThought.md

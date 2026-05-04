@@ -78,6 +78,9 @@ dspy = ["primitives/*.js"]
 [project.urls]
 homepage = "https://github.com/stanfordnlp/dspy"
 
+[project.scripts]
+dspy = "dspy.cli:main"
+
 [tool.coverage.run]
 branch = true
 omit = [

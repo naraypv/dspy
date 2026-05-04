@@ -38,6 +38,7 @@ __pycache__/
 *.pt
 gpt*.txt
 *.env
+.api.txt
 local/
 build/
 *.egg-info/
@@ -66,3 +67,18 @@ docs/docs/**/*.json*
 
 test_before_pypi/
 .github/.internal_dspyai/dist/
+
+# Local agent planning, documentation archives, and scratch state.
+/plan/
+/temp/
+/.serena/
+/.cache/
+/.codex/
+/.claude/
+/.cursor/
+/agent_worktrees/
+/.agent_worktrees/
+/codex_worktrees/
+/.codex_worktrees/
+*.agent.md
+*.agent.local.md
