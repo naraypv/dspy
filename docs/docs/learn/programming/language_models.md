@@ -198,10 +198,10 @@ GPT-3.5-turbo: The castle David Gregory inherited has 7 floors.
 This fork also provides `dspy.SubscriptionLM` for rotating across locally authenticated Codex, Claude Code, Cursor, and MiniMax accounts. Use the CLI to register non-secret account metadata, then load the pool from the registry.
 
 ```bash
-dspy lm accounts add codex --name codex-pro --codex-home ~/.codex-codex-pro --auth chatgpt --login
-dspy lm accounts add minimax --name minimax-main --env-key MINIMAX_API_KEY_1 --model openai/MiniMax-M2.7
+dspy lm accounts login codex
+dspy lm accounts login minimax
 dspy lm accounts doctor
-dspy lm accounts smoke --account codex-pro --prompt "Reply with OK only." --yes-live
+dspy lm accounts smoke --account codex-1 --prompt "Reply with OK only." --yes-live
 ```
 
 ```python linenums="1"

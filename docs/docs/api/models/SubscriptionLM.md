@@ -12,16 +12,18 @@ Use it when the credentials live outside Python source code:
 
 ## Account Login And Registration
 
-Register accounts with the installed `dspy` command:
+Log in accounts with the installed `dspy` command:
 
 ```bash
-dspy lm accounts add codex --name codex-pro --codex-home ~/.codex-codex-pro --auth chatgpt --login
-dspy lm accounts add claude --name claude-max --claude-config-dir ~/.claude-claude-max --auth oauth --login
-dspy lm accounts add cursor --name cursor-pro --cursor-home ~/.cursor-cursor-pro --auth browser --model auto --login
-dspy lm accounts add minimax --name minimax-main --env-key MINIMAX_API_KEY_1 --model openai/MiniMax-M2.7
+dspy lm accounts login codex
+dspy lm accounts login claude
+dspy lm accounts login cursor
+dspy lm accounts login minimax
 ```
 
-`--codex-home` maps to `CODEX_HOME`, `--claude-config-dir` maps to `CLAUDE_CONFIG_DIR`, and `--cursor-home` is used as the subprocess `HOME` for Cursor CLI account isolation. For CLI-backed accounts, `--model` is forwarded to the provider command when present; for Cursor accounts that cannot use a named model in headless mode, use `--model auto`.
+DSPy automatically assigns names such as `codex-1`, `claude-1`, `cursor-1`, and `minimax-1`. Codex, Claude Code, and Cursor accounts are logged in through their native OAuth CLIs and isolated under `~/.dspy/accounts/homes/`. MiniMax reads `MINIMAX_API_KEY_1` by default and stores only a credential fingerprint plus the environment variable name. Re-running `login` with the same detected account exits without adding a duplicate.
+
+Use `dspy lm accounts add ...` only when you need explicit names or custom credential homes. For that advanced path, `--codex-home` maps to `CODEX_HOME`, `--claude-config-dir` maps to `CLAUDE_CONFIG_DIR`, and `--cursor-home` is used as the subprocess `HOME` for Cursor CLI account isolation. For CLI-backed accounts, `--model` is forwarded to the provider command when present; for Cursor accounts that cannot use a named model in headless mode, use `--model auto`.
 
 Claude Code calls run in a minimal non-bare print-mode configuration that still reads OAuth credentials but disables user/local settings, session persistence, auto MCP loading, slash commands, and tools. This keeps DSPy LM calls isolated from local hooks and project automation while preserving subscription authentication.
 
@@ -31,13 +33,13 @@ Inspect the registry without printing secret values:
 dspy lm accounts list
 dspy lm accounts status
 dspy lm accounts doctor
-dspy lm accounts remove cursor-pro
+dspy lm accounts remove cursor-1
 ```
 
 Run an explicit live smoke call only when you are ready to spend provider credits:
 
 ```bash
-dspy lm accounts smoke --account codex-pro --prompt "Reply with OK only." --yes-live
+dspy lm accounts smoke --account codex-1 --prompt "Reply with OK only." --yes-live
 ```
 
 By default, registry metadata is written under `~/.dspy/accounts/accounts.json`. Set `DSPY_ACCOUNT_CONFIG_DIR` to use a different directory.

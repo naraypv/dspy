@@ -1,8 +1,42 @@
+import base64
 import json
+from pathlib import Path
 from subprocess import CompletedProcess
+
+import pytest
 
 from dspy.cli import main
 from dspy.clients.subscription_lm import AccountRef
+from dspy.clients.subscription_lm.account_login import probe_provider_identity
+
+
+def _fake_codex_id_token(*, email: str, account_id: str) -> str:
+    def encode_json(data: dict) -> str:
+        encoded = base64.urlsafe_b64encode(json.dumps(data).encode("utf-8")).decode("ascii")
+        return encoded.rstrip("=")
+
+    claims = {
+        "email": email,
+        "sub": f"auth0|{account_id}",
+        "https://api.openai.com/auth": {"chatgpt_account_id": account_id},
+    }
+    return f"{encode_json({'alg': 'none'})}.{encode_json(claims)}."
+
+
+def _write_codex_auth(home: Path, *, email: str, account_id: str) -> None:
+    home.mkdir(mode=0o700, parents=True, exist_ok=True)
+    (home / "auth.json").write_text(
+        json.dumps(
+            {
+                "tokens": {
+                    "id_token": _fake_codex_id_token(
+                        email=email,
+                        account_id=account_id,
+                    )
+                }
+            }
+        )
+    )
 
 
 def test_cli_add_list_status_and_remove_minimax_account(tmp_path, monkeypatch, capsys):
@@ -75,6 +109,139 @@ def test_cli_add_codex_with_login_invokes_provider_login(tmp_path, monkeypatch, 
     assert "codex login checked" in output
     assert calls[0].provider == "codex"
     assert calls[0].auth == "chatgpt"
+
+
+def test_cli_login_codex_auto_names_and_isolates_accounts(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("DSPY_ACCOUNT_CONFIG_DIR", str(tmp_path))
+
+    def fake_login(account):
+        home = tmp_path / "homes" / "codex" / "_login"
+        _write_codex_auth(home, email="codex-a@example.com", account_id="account-a")
+        assert account.home == str(home)
+        return "codex login checked"
+
+    monkeypatch.setattr("dspy.cli.run_provider_login", fake_login)
+
+    assert main(["lm", "accounts", "login", "codex"]) == 0
+
+    output = capsys.readouterr().out
+    assert "codex login checked" in output
+    assert "codex-1" in output
+    assert "codex-a@example.com" in output
+
+    assert main(["lm", "accounts", "list", "--format", "json"]) == 0
+    listed = json.loads(capsys.readouterr().out)
+    account = listed["accounts"][0]
+    assert account["name"] == "codex-1"
+    assert account["home"] == str(tmp_path / "homes" / "codex" / "codex-1")
+    assert account["metadata"]["identity_label"] == "codex-a@example.com"
+    assert not (tmp_path / "homes" / "codex" / "_login").exists()
+
+
+def test_cli_login_codex_deduplicates_same_authenticated_account(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("DSPY_ACCOUNT_CONFIG_DIR", str(tmp_path))
+
+    def fake_login(account):
+        home = tmp_path / "homes" / "codex" / "_login"
+        _write_codex_auth(home, email="same-codex@example.com", account_id="same-account")
+        return "codex login checked"
+
+    monkeypatch.setattr("dspy.cli.run_provider_login", fake_login)
+
+    assert main(["lm", "accounts", "login", "codex"]) == 0
+    capsys.readouterr()
+    assert main(["lm", "accounts", "login", "codex"]) == 0
+
+    output = capsys.readouterr().out
+    assert "already registered as codex-1" in output
+    assert not (tmp_path / "homes" / "codex" / "_login").exists()
+
+    assert main(["lm", "accounts", "list", "--format", "json"]) == 0
+    listed = json.loads(capsys.readouterr().out)
+    assert [account["name"] for account in listed["accounts"]] == ["codex-1"]
+
+
+def test_cli_login_codex_deduplicates_legacy_manual_account(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("DSPY_ACCOUNT_CONFIG_DIR", str(tmp_path))
+    legacy_home = tmp_path / "legacy-codex"
+    _write_codex_auth(legacy_home, email="legacy-codex@example.com", account_id="legacy-account")
+
+    assert (
+        main(
+            [
+                "lm",
+                "accounts",
+                "add",
+                "codex",
+                "--name",
+                "codex-legacy",
+                "--codex-home",
+                str(legacy_home),
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    def fake_login(account):
+        home = tmp_path / "homes" / "codex" / "_login"
+        _write_codex_auth(home, email="legacy-codex@example.com", account_id="legacy-account")
+        return "codex login checked"
+
+    monkeypatch.setattr("dspy.cli.run_provider_login", fake_login)
+
+    assert main(["lm", "accounts", "login", "codex"]) == 0
+
+    assert "already registered as codex-legacy" in capsys.readouterr().out
+    assert main(["lm", "accounts", "list", "--format", "json"]) == 0
+    listed = json.loads(capsys.readouterr().out)
+    assert [account["name"] for account in listed["accounts"]] == ["codex-legacy"]
+
+
+def test_codex_identity_probe_requires_auth_file_identity(tmp_path, monkeypatch):
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        return CompletedProcess(args=command, returncode=0, stdout="Logged in using ChatGPT")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    with pytest.raises(ValueError, match=r"auth\.json"):
+        probe_provider_identity(AccountRef(name="codex", provider="codex", home=str(tmp_path / "missing-auth")))
+
+    assert calls == []
+
+
+def test_cli_login_minimax_auto_names_and_deduplicates_same_key(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("DSPY_ACCOUNT_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("MINIMAX_API_KEY_1", "minimax-test-key-one")
+
+    assert main(["lm", "accounts", "login", "minimax"]) == 0
+    assert "minimax-1" in capsys.readouterr().out
+
+    assert main(["lm", "accounts", "login", "minimax"]) == 0
+    assert "already registered as minimax-1" in capsys.readouterr().out
+
+    assert main(["lm", "accounts", "list", "--format", "json"]) == 0
+    listed = json.loads(capsys.readouterr().out)
+    assert [account["name"] for account in listed["accounts"]] == ["minimax-1"]
+    assert "minimax-test-key-one" not in json.dumps(listed)
+
+
+def test_cli_login_minimax_adds_second_distinct_key_without_user_numbering(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("DSPY_ACCOUNT_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("MINIMAX_API_KEY_1", "minimax-test-key-one")
+    monkeypatch.setenv("MINIMAX_API_KEY_2", "minimax-test-key-two")
+
+    assert main(["lm", "accounts", "login", "minimax", "--env-key", "MINIMAX_API_KEY_1"]) == 0
+    capsys.readouterr()
+    assert main(["lm", "accounts", "login", "minimax", "--env-key", "MINIMAX_API_KEY_2"]) == 0
+
+    assert "minimax-2" in capsys.readouterr().out
+    assert main(["lm", "accounts", "list", "--format", "json"]) == 0
+    listed = json.loads(capsys.readouterr().out)
+    assert [account["name"] for account in listed["accounts"]] == ["minimax-1", "minimax-2"]
 
 
 def test_cli_doctor_reports_missing_environment_key(tmp_path, monkeypatch, capsys):
