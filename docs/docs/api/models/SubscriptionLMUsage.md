@@ -83,6 +83,8 @@ uv run dspy lm accounts add cursor \
   --login
 ```
 
+The CLI creates these provider home directories automatically with private permissions before invoking the provider login command.
+
 Lower `--priority` values are selected first. Accounts with the same priority rotate round-robin:
 
 ```bash

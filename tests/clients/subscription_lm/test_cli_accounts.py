@@ -174,3 +174,23 @@ def test_cursor_login_uses_home_for_oauth_account_isolation(monkeypatch):
     assert message == "cursor login completed"
     assert calls[0][0] == ["agent", "login"]
     assert calls[0][1]["HOME"] == "/tmp/cursor-home"
+
+
+def test_cli_login_creates_missing_account_home(tmp_path, monkeypatch):
+    home = tmp_path / "codex-home"
+    calls = []
+
+    def fake_run(command, env, check):
+        calls.append((command, env, check))
+        assert home.exists()
+        return CompletedProcess(args=command, returncode=0)
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    from dspy.cli import run_provider_login
+
+    message = run_provider_login(AccountRef(name="codex-a", provider="codex", home=str(home)))
+
+    assert message == "codex login completed"
+    assert calls[0][0] == ["codex", "login"]
+    assert calls[0][1]["CODEX_HOME"] == str(home)

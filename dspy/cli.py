@@ -40,14 +40,22 @@ def run_provider_login(account: AccountRef) -> str:
     command = _login_command(account)
     env = {**os.environ}
     home = str(Path(account.home).expanduser()) if account.home else None
-    if account.home and account.provider == "codex":
+    if home:
+        _ensure_account_home(Path(home))
+    if home and account.provider == "codex":
         env["CODEX_HOME"] = home
-    if account.home and account.provider == "claude":
+    if home and account.provider == "claude":
         env["CLAUDE_CONFIG_DIR"] = home
-    if account.home and account.provider == "cursor":
+    if home and account.provider == "cursor":
         env["HOME"] = home
     subprocess.run(command, env=env, check=True)
     return f"{account.provider} login completed"
+
+
+def _ensure_account_home(path: Path) -> None:
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if os.name == "posix":
+        path.chmod(0o700)
 
 
 def _build_parser() -> argparse.ArgumentParser:
